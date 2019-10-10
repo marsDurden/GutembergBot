@@ -26,13 +26,11 @@ def start(update, context):
         con.commit()
     con.close()
     
-    
     # Send start message
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
     
     # Set new settimana
     inizializza_settimana(context, list_id=update.message.chat.id)
-    
 
 def stop(update, context):
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Sei stato tolto dall'elenco degli utenti, per ricominciare premi /start")
