@@ -9,7 +9,7 @@ from datetime import date, time
 settings_path = 'settings.ini'
 db_path = 'database.db'
 
-
+# Logging errors
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                      level=logging.INFO)
 
@@ -27,7 +27,7 @@ def start(update, context):
     con.close()
     
     
-    # Send home message
+    # Send start message
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
     home(update, context)
 
@@ -63,13 +63,14 @@ def turni(update, context, chat_id=None):
     text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\nLunedì: {}\nMartedì: {}\nMercoledì: {}\nGiovedì: {}\nVenerdì: {}\n\nPrenotati qui sotto:"
     
     # Make buttons
-    giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì']
+    giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
     i = 0; keyboard = []
     for turn in row[1:]:
         if turn is None:
             keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i))])
+        else:
+            keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i))])
         i += 1
-    keyboard.append([InlineKeyboardButton('- reset -', callback_data='2-'+str(id_turno))])
     keyboard = InlineKeyboardMarkup(keyboard)
     
     # Send message
@@ -85,6 +86,11 @@ def callback_turni(update, context):
     name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
     if name == ' ':
         name = update.callback_query.from_user.username
+    if name.replace(' ','') == ' ':
+        name = update.callback_query.from_user.id
+    
+    # Filter name characters
+    name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
     
     # Insert name
     con = sqlite3.connect(db_path)
@@ -102,12 +108,13 @@ def callback_turni(update, context):
     turni(None, context, chat_id=update.callback_query.message.chat.id)
 
 def reset_turni(update, context):
-    data = update.callback_query.data[2:]
+    data = update.callback_query.data[2:].split('-')
     
     # Resetta i turni della settimana
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("UPDATE turns SET lun=NULL, mar=NULL, mer=NULL, gio=NULL, ven=NULL, sab=NULL, dom=NULL WHERE ID = ?", (data,))
+    colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+    c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = NULL WHERE ID = ?", (data[0],))
     con.commit()
     con.close()
     
@@ -117,9 +124,10 @@ def reset_turni(update, context):
     
     # Send new message to group
     turni(None, context, chat_id=update.callback_query.message.chat.id)
-    
 
 def inizializza_settimana(context):
+    week_number = date.today().strftime("%U")
+    
     # Get alla chats
     con = sqlite3.connect(db_path)
     c = con.cursor()
@@ -128,7 +136,6 @@ def inizializza_settimana(context):
     for chat_id in id_list:
         chat_id = chat_id[0]
         # Set new week to null for all days
-        week_number = date.today().strftime("%U")
         c.execute("SELECT * FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
         if c.fetchone() is None:
             c.execute("INSERT INTO turns (chat_id, settimana, lun, mar, mer, gio, ven, sab, dom) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
@@ -138,6 +145,18 @@ def inizializza_settimana(context):
     
     # Send new message to group
     turni(None, context, chat_id=chat_id)
+
+def check_prenotazione(context):
+    colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+    day_number = date.today().strftime("%w")
+    
+    con = sqlite3.connect(db_path)
+    c = con.cursor()
+    c.execute("SELECT chat_id FROM utenti")
+    id_list = c.fetchall()
+    for chat_id in id_list:
+        chat_id = chat_id[0]
+        c.execute("SELECT " + colonne[] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
 
 def error(update, context):
     try:
@@ -173,9 +192,11 @@ def main():
     # log all errors
     dispatcher.add_error_handler(error)
     
-    # Periodic Job every Monday at 8:00
-    updater.job_queue.run_daily(inizializza_settimana, time=time(8, 0, 0), days=(0, 1, 2, 3, 4))
-    #updater.job_queue.run_once(inizializza_settimana, 0) # test
+    # Periodic Job every Monday at 12:00
+    #updater.job_queue.run_daily(inizializza_settimana, time=time(12, 0, 0), days=[0])
+    
+    # Periodic Job every Mon to Fri at 20:00
+    #updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=[0, 1, 3, 4, 5])
     
     updater.start_polling()
     
