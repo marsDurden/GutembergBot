@@ -211,7 +211,7 @@ def main():
     updater.job_queue.run_daily(inizializza_settimana, time=time(12, 0, 0), days=(0,))
     
     # Periodic Job every Mon to Fri at 20:00
-    updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=(0, 1, 3, 4, 5))
+    updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=(0, 1, 2, 3, 4, 5, 6))
     #updater.job_queue.run_once(check_prenotazione, when=0)
     
     updater.start_polling()
