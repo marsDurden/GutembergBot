@@ -48,9 +48,6 @@ def info(update, context):
                             reply_markup=keyboard,
                             parse_mode=ParseMode.MARKDOWN)
 
-def home(update, context):
-    inizializza_settimana(context)
-
 def turni(update, context, chat_id=None):
     # Set chat_id
     chat_id = update.message.chat.id if chat_id is None else chat_id
@@ -144,10 +141,10 @@ def inizializza_settimana(context):
             c.execute("INSERT INTO turns (chat_id, settimana, lun, mar, mer, gio, ven, sab, dom) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
                     (chat_id, week_number))
             con.commit()
+            
+            # Send new message to group
+            turni(None, context, chat_id=chat_id)
     con.close()
-    
-    # Send new message to group
-    turni(None, context, chat_id=chat_id)
 
 def check_prenotazione(context):
     colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
@@ -182,7 +179,6 @@ def main():
     
     # Bot commands
     dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('home', home))
     dispatcher.add_handler(CommandHandler('stop', stop))
     
     dispatcher.add_handler(CommandHandler('info', info))
