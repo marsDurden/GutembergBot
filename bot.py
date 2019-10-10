@@ -3,7 +3,7 @@ from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryH
 from telegram import KeyboardButton, ReplyKeyboardMarkup, ParseMode, InlineKeyboardButton, InlineKeyboardMarkup
 
 import logging, configparser, sqlite3
-from datetime import date
+from datetime import date, time
 
 # Global settings
 settings_path = 'settings.ini'
