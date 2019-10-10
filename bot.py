@@ -26,7 +26,9 @@ def start(update, context):
         con.commit()
     con.close()
     
+    
     # Send home message
+    context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
     home(update, context)
 
 def stop(update, context):
@@ -44,7 +46,6 @@ def info(update, context):
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Bot opensource fatto da @ThanksLory")
 
 def home(update, context):
-    context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
     inizializza_settimana(context)
 
 def turni(update, context, chat_id=None):
@@ -142,11 +143,11 @@ def error(update, context):
     try:
         # Normal message
         context.bot.sendMessage(config['BOT']['adminID'],parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.message.chat_id, update.message.text, context.error)))
-        logger.warn('Update "%s" caused error "%s"' % (update.message.text, context.error))
+        logging.warn('Update "%s" caused error "%s"' % (update.message.text, context.error))
     except:
         # Callback message
         context.bot.sendMessage(config['BOT']['adminID'],parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.callback_query.message.chat_id, update.callback_query.data, context.error)))
-        logger.warn('Update "%s" caused error "%s"' % (update.callback_query.data, context.error))
+        logging.warn('Update "%s" caused error "%s"' % (update.callback_query.data, context.error))
 
 def main():
     updater = Updater(token=config['BOT']['token'], use_context=True) 
