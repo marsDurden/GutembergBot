@@ -43,7 +43,10 @@ def stop(update, context):
 def info(update, context):
     markup = [[InlineKeyboardButton('Source code on Github', url='https://github.com/marsDurden/GutembergBot')]]
     markup = InlineKeyboardMarkup(markup)
-    context.bot.sendMessage(chat_id=update.message.chat_id, text="Bot opensource fatto da @ThanksLory")
+    context.bot.sendMessage(chat_id=update.message.chat_id,
+                            text="Bot opensource fatto da @ThanksLory",
+                            reply_markup=keyboard,
+                            parse_mode=ParseMode.MARKDOWN)
 
 def home(update, context):
     inizializza_settimana(context)
@@ -55,12 +58,12 @@ def turni(update, context, chat_id=None):
     # Get last week in database
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("SELECT id, settimana, lun, mar, mer, gio, ven FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    c.execute("SELECT id, settimana, lun, mar, mer, gio, ven, sab, dom FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
     row = c.fetchone()
     id_turno = row[0]
     row = row[1:]
     # Skeleton text
-    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\nLunedì: {}\nMartedì: {}\nMercoledì: {}\nGiovedì: {}\nVenerdì: {}\n\nPrenotati qui sotto:"
+    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\nLunedì: {}\nMartedì: {}\nMercoledì: {}\nGiovedì: {}\nVenerdì: {}\nSabato: {}\nDomenica: {}\n\nPrenotati qui sotto:"
     
     # Make buttons
     giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
@@ -149,6 +152,7 @@ def inizializza_settimana(context):
 def check_prenotazione(context):
     colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
     day_number = date.today().strftime("%w")
+    week_number = date.today().strftime("%U")
     
     con = sqlite3.connect(db_path)
     c = con.cursor()
@@ -156,7 +160,10 @@ def check_prenotazione(context):
     id_list = c.fetchall()
     for chat_id in id_list:
         chat_id = chat_id[0]
-        c.execute("SELECT " + colonne[] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
+        c.execute("SELECT " + colonne[int(day_number)] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
+        if c.fetchone()[0] is None:
+            # Send message to group
+            turni(None, context, chat_id=chat_id)
 
 def error(update, context):
     try:
@@ -193,10 +200,11 @@ def main():
     dispatcher.add_error_handler(error)
     
     # Periodic Job every Monday at 12:00
-    #updater.job_queue.run_daily(inizializza_settimana, time=time(12, 0, 0), days=[0])
+    updater.job_queue.run_daily(inizializza_settimana, time=time(12, 0, 0), days=(0,))
     
     # Periodic Job every Mon to Fri at 20:00
-    #updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=[0, 1, 3, 4, 5])
+    updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=(0, 1, 3, 4, 5))
+    #updater.job_queue.run_once(check_prenotazione, when=0)
     
     updater.start_polling()
     
