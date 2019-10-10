@@ -29,7 +29,10 @@ def start(update, context):
     
     # Send start message
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
-    home(update, context)
+    
+    # Set new settimana
+    inizializza_settimana(context, list_id=update.message.chat.id)
+    
 
 def stop(update, context):
     context.bot.sendMessage(chat_id=update.message.chat_id, text="Sei stato tolto dall'elenco degli utenti, per ricominciare premi /start")
@@ -81,6 +84,7 @@ def turni(update, context, chat_id=None):
 
 def callback_turni(update, context):
     data = update.callback_query.data[2:].split('-')
+    user_id = update.callback_query.from_user.id
     
     # Get name of user
     name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
@@ -96,7 +100,7 @@ def callback_turni(update, context):
     con = sqlite3.connect(db_path)
     c = con.cursor()
     colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
-    c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ? WHERE ID = ?", (name, data[0]) )
+    c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ?, " + colonne[int(data[1])] + "ID = ? WHERE ID = ?", (name, user_id, data[0]) )
     con.commit()
     con.close()
     
@@ -109,30 +113,40 @@ def callback_turni(update, context):
 
 def reset_turni(update, context):
     data = update.callback_query.data[2:].split('-')
+    user_id = str(update.callback_query.from_user.id)
+    username = update.callback_query.from_user.username
     
     # Resetta i turni della settimana
     con = sqlite3.connect(db_path)
     c = con.cursor()
     colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
-    c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = NULL WHERE ID = ?", (data[0],))
-    con.commit()
-    con.close()
+    c.execute("SELECT " + colonne[int(data[1])] + "ID FROM turns WHERE ID = ?", (data[0],))
+    turn_user_id = str(c.fetchone()[0])
     
-    # Delete message
-    context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
-                              message_id=update.callback_query.message.message_id)
-    
-    # Send new message to group
-    turni(None, context, chat_id=update.callback_query.message.chat.id)
+    # Restrict reset access
+    flag = False
+    for u_name in config['BOT']['admins'].split(','):
+        if u_name == username:
+            flag = True
+    if user_id == turn_user_id or flag:
+        c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = NULL WHERE ID = ?", (data[0],))
+        con.commit()
+        con.close()
+        # Delete message
+        context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
+                                message_id=update.callback_query.message.message_id)
+        
+        # Send new message to group
+        turni(None, context, chat_id=update.callback_query.message.chat.id)
 
-def inizializza_settimana(context):
+def inizializza_settimana(context, list_id=None):
     week_number = date.today().strftime("%U")
     
     # Get alla chats
     con = sqlite3.connect(db_path)
     c = con.cursor()
     c.execute("SELECT chat_id FROM utenti")
-    id_list = c.fetchall()
+    id_list = c.fetchall() if list_id is None else [(str(list_id),)]
     for chat_id in id_list:
         chat_id = chat_id[0]
         # Set new week to null for all days
