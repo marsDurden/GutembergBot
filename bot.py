@@ -45,7 +45,7 @@ def info(update, context):
     markup = InlineKeyboardMarkup(markup)
     context.bot.sendMessage(chat_id=update.message.chat_id,
                             text="Bot opensource fatto da @ThanksLory",
-                            reply_markup=keyboard,
+                            reply_markup=markup,
                             parse_mode=ParseMode.MARKDOWN)
 
 def turni(update, context, chat_id=None):
