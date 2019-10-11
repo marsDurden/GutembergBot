@@ -112,7 +112,6 @@ def callback_turni(update, context):
 def reset_turni(update, context):
     data = update.callback_query.data[2:].split('-')
     user_id = str(update.callback_query.from_user.id)
-    username = update.callback_query.from_user.username
     
     # Resetta i turni della settimana
     con = sqlite3.connect(db_path)
@@ -123,8 +122,8 @@ def reset_turni(update, context):
     
     # Restrict reset access
     flag = False
-    for u_name in config['BOT']['admins'].split(','):
-        if u_name == username:
+    for admin_id in config['BOT']['admins'].split(','):
+        if admin_id == user_id:
             flag = True
     if user_id == turn_user_id or flag:
         c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = NULL WHERE ID = ?", (data[0],))
@@ -208,10 +207,12 @@ def main():
     dispatcher.add_error_handler(error)
     
     # Periodic Job every Monday at 12:00
-    updater.job_queue.run_daily(inizializza_settimana, time=time(12, 0, 0), days=(0,))
+    updater.job_queue.run_daily(inizializza_settimana, time=time(8, 0, 0), days=(0,))
+    updater.job_queue.run_daily(inizializza_settimana, time=time(19, 0, 0), days=(6,))
     
     # Periodic Job every Mon to Fri at 20:00
-    updater.job_queue.run_daily(check_prenotazione, time=time(20, 0, 0), days=(0, 1, 2, 3, 4, 5, 6))
+    updater.job_queue.run_daily(check_prenotazione, time=time(12, 0, 0), days=(0, 1, 2, 3, 4, 5, 6))
+    updater.job_queue.run_daily(check_prenotazione, time=time(19, 0, 0), days=(0, 1, 2, 3, 4, 5))
     #updater.job_queue.run_once(check_prenotazione, when=0)
     
     updater.start_polling()
