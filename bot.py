@@ -61,23 +61,34 @@ def turni(update, context, chat_id=None):
     id_turno = row[0]
     row = row[1:]
     # Skeleton text
-    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\nLunedì: {}\nMartedì: {}\nMercoledì: {}\nGiovedì: {}\nVenerdì: {}\nSabato: {}\nDomenica: {}\n\nPrenotati qui sotto:"
+    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\n`Lunedì:    {}\nMartedì:   {}\nMercoledì: {}\nGiovedì:   {}\nVenerdì:   {}\nSabato:    {}\nDomenica:  {}`\n\nPrenotati qui sotto:"
     
     # Make buttons
     giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
-    i = 0; keyboard = []
-    for turn in row[1:]:
-        if turn is None:
-            keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i))])
+    i = 0; line, keyboard = [[],[]]
+    while i < 5:
+        if row[i+1] is None:
+            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
         else:
-            keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i))])
+            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
         i += 1
-    keyboard = InlineKeyboardMarkup(keyboard)
+        if row[i+1] is None:
+            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+        else:
+            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+        i += 1
+        keyboard.append(line)
+        line = []
+    if row[i+1] is None:
+        keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
+    else:
+        keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
+    
     
     # Send message
     context.bot.sendMessage(chat_id=chat_id,
                             text=text.format(*row),
-                            reply_markup=keyboard,
+                            reply_markup=InlineKeyboardMarkup(keyboard),
                             parse_mode=ParseMode.MARKDOWN)
 
 def callback_turni(update, context):
