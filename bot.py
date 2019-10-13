@@ -232,5 +232,4 @@ def main():
     updater.idle()
 
 if __name__ == '__main__':
-    #main()
-    check_prenotazione(None)
+    main()
