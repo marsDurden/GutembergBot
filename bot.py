@@ -169,10 +169,10 @@ def inizializza_settimana(context, list_id=None):
     con.close()
 
 def check_prenotazione(context):
-    colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+    colonne = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
     day_number = date.today().strftime("%w")
     week_number = date.today().strftime("%U")
-    
+    print(day_number, week_number)
     con = sqlite3.connect(db_path)
     c = con.cursor()
     c.execute("SELECT chat_id FROM utenti")
@@ -217,7 +217,8 @@ def main():
     # log all errors
     dispatcher.add_error_handler(error)
     
-    # Periodic Job every Monday at 12:00
+    # Periodic Job
+    # 0 - Monday -> 6 - Sunday
     updater.job_queue.run_daily(inizializza_settimana, time=time(8, 0, 0), days=(0,))
     updater.job_queue.run_daily(inizializza_settimana, time=time(19, 0, 0), days=(6,))
     
@@ -231,4 +232,5 @@ def main():
     updater.idle()
 
 if __name__ == '__main__':
-    main()
+    #main()
+    check_prenotazione(None)
