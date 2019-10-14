@@ -222,7 +222,7 @@ def stampa_turni(update, context):
         c = con.cursor()
         c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
         turn_list = c.fetchone()
-        names = [], flag = False
+        names = []; flag = False
         for item in turn_list:
             try:
                 names.append(matricole[item]['nome'])
