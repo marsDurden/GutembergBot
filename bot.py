@@ -295,7 +295,6 @@ def check_prenotazione(context):
     # 0 - Sunday -> 6 - Saturday
     day_number = date.today().strftime("%w")
     week_number = date.today().strftime("%U")
-    print(day_number, week_number)
     con = sqlite3.connect(db_path)
     c = con.cursor()
     c.execute("SELECT chat_id FROM utenti")
