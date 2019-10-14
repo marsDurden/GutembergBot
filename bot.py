@@ -16,6 +16,58 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 config = configparser.ConfigParser()
 config.read(settings_path)
 
+def text_keyboard(chat_id):
+    # Get last week in database
+    con = sqlite3.connect(db_path)
+    c = con.cursor()
+    c.execute("SELECT id, settimana, lun, lunID, mar, marID, mer, merID, gio, gioID, ven, venID, sab, sabID, dom, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    # variable row
+    # 0     | id
+    # 1     | # settimana
+    # 2-end | turni giornalieri
+    row = c.fetchone()
+    id_turno = row[0]
+    row = row[1:]
+    
+    c.execute("SELECT lun, mar, mer, gio, ven, sab, dom FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    turn_list = c.fetchone()
+    
+    # Skeleton text
+    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n#ChiChiude\n\n`Lunedì:    `[{}](tg://user?id={})\n" + \
+        "`Martedì:   `[{}](tg://user?id={})\n`Mercoledì: `[{}](tg://user?id={})\n`Giovedì:   `[{}](tg://user?id={})\n" + \
+        "`Venerdì:   `[{}](tg://user?id={})\n`Sabato:    `[{}](tg://user?id={})\n`Domenica:  `[{}](tg://user?id={})\n\n" + \
+        "Prenotati qui sotto:"
+    
+    # Make buttons
+    giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
+    i = 0; tot=0; line, keyboard = [[],[]]
+    while i < 5:
+        if turn_list[i] is None:
+            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+        else:
+            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+            tot += 1
+        i += 1
+        if turn_list[i] is None:
+            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+        else:
+            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+            tot += 1
+        i += 1
+        keyboard.append(line)
+        line = []
+    # 7 is prime -> no symmetry in buttons
+    if turn_list[i] is None:
+        keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
+    else:
+        keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
+        tot += 1
+    # Add button for printing and blocking turns
+    if tot == 7:
+        keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-print' )] )
+    
+    return text.format(*row), InlineKeyboardMarkup(keyboard)
+
 def start(update, context):
     # Inserisce il nuovo utente/gruppo nel database
     con = sqlite3.connect(db_path)
@@ -49,46 +101,14 @@ def info(update, context):
                             reply_markup=markup,
                             parse_mode=ParseMode.MARKDOWN)
 
-def turni(update, context, chat_id=None):
-    # Set chat_id
-    chat_id = update.message.chat.id if chat_id is None else chat_id
-    
-    # Get last week in database
-    con = sqlite3.connect(db_path)
-    c = con.cursor()
-    c.execute("SELECT id, settimana, lun, mar, mer, gio, ven, sab, dom FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
-    row = c.fetchone()
-    id_turno = row[0]
-    row = row[1:]
-    # Skeleton text
-    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n\n`Lunedì:    {}\nMartedì:   {}\nMercoledì: {}\nGiovedì:   {}\nVenerdì:   {}\nSabato:    {}\nDomenica:  {}`\n\nPrenotati qui sotto:"
-    
-    # Make buttons
-    giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
-    i = 0; line, keyboard = [[],[]]
-    while i < 5:
-        if row[i+1] is None:
-            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
-        else:
-            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
-        i += 1
-        if row[i+1] is None:
-            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
-        else:
-            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
-        i += 1
-        keyboard.append(line)
-        line = []
-    if row[i+1] is None:
-        keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
-    else:
-        keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
-    
-    
+def turni(update, context):
+    # Create text, keyboard
+    chat_id = update.message.chat.id
+    t, k = text_keyboard(chat_id)
     # Send message
     context.bot.sendMessage(chat_id=chat_id,
-                            text=text.format(*row),
-                            reply_markup=InlineKeyboardMarkup(keyboard),
+                            text=t,
+                            reply_markup=k,
                             parse_mode=ParseMode.MARKDOWN)
 
 def callback_turni(update, context):
@@ -114,17 +134,27 @@ def callback_turni(update, context):
     con.close()
     
     # Delete message
-    context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
+    try:
+        context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
                               message_id=update.callback_query.message.message_id)
+    except:
+        pass
     
     # Send new message to group
-    turni(None, context, chat_id=update.callback_query.message.chat.id)
+    chat_id = update.callback_query.message.chat.id
+    # Create text, keyboard
+    t, k = text_keyboard(chat_id)
+    # Send message
+    context.bot.sendMessage(chat_id=chat_id,
+                            text=t,
+                            reply_markup=k,
+                            parse_mode=ParseMode.MARKDOWN)
 
 def reset_turni(update, context):
     data = update.callback_query.data[2:].split('-')
     user_id = str(update.callback_query.from_user.id)
     
-    # Resetta i turni della settimana
+    # Seelzione utente prenotato
     con = sqlite3.connect(db_path)
     c = con.cursor()
     colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
@@ -137,15 +167,29 @@ def reset_turni(update, context):
         if admin_id == user_id:
             flag = True
     if user_id == turn_user_id or flag:
-        c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = NULL WHERE ID = ?", (data[0],))
+        # Resetta il turno
+        c.execute("UPDATE turns SET "+colonne[int(data[1])]+" = NULL, "+ colonne[int(data[1])] +"ID = NULL WHERE ID = ?", (data[0],))
         con.commit()
         con.close()
         # Delete message
-        context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
+        try:
+            context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
                                 message_id=update.callback_query.message.message_id)
+        except:
+            pass
         
-        # Send new message to group
-        turni(None, context, chat_id=update.callback_query.message.chat.id)
+        chat_id = update.callback_query.message.chat.id
+        # Create text, keyboard
+        t, k = text_keyboard(chat_id)
+        # Send message
+        context.bot.sendMessage(chat_id=chat_id,
+                                text=t,
+                                reply_markup=k,
+                                parse_mode=ParseMode.MARKDOWN)
+
+def stampa_turni(update, context):
+    #TODO
+    pass
 
 def inizializza_settimana(context, list_id=None):
     week_number = date.today().strftime("%U")
@@ -160,7 +204,7 @@ def inizializza_settimana(context, list_id=None):
         # Set new week to null for all days
         c.execute("SELECT * FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
         if c.fetchone() is None:
-            c.execute("INSERT INTO turns (chat_id, settimana, lun, mar, mer, gio, ven, sab, dom) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+            c.execute("INSERT INTO turns (chat_id, settimana) VALUES (?, ?)",
                     (chat_id, week_number))
             con.commit()
             
@@ -170,6 +214,7 @@ def inizializza_settimana(context, list_id=None):
 
 def check_prenotazione(context):
     colonne = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
+    # 0 - Sunday -> 6 - Saturday
     day_number = date.today().strftime("%w")
     week_number = date.today().strftime("%U")
     print(day_number, week_number)
@@ -211,11 +256,13 @@ def main():
     # 0 | nothing
     # 1 | new name
     # 2 | reset turns
+    # 3 | print turns
     dispatcher.add_handler(CallbackQueryHandler(callback_turni, pattern='^1-'))
     dispatcher.add_handler(CallbackQueryHandler(reset_turni, pattern='^2-'))
+    dispatcher.add_handler(CallbackQueryHandler(stampa_turni, pattern='^3-'))
     
     # log all errors
-    dispatcher.add_error_handler(error)
+    #dispatcher.add_error_handler(error)
     
     # Periodic Job
     # 0 - Monday -> 6 - Sunday
