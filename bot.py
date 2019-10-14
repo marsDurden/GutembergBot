@@ -224,10 +224,10 @@ def stampa_turni(update, context):
         turn_list = c.fetchone()
         names = []
         for item in turn_list:
-            if item is not None:
+            try:
                 names.append(matricole[item]['nome'])
                 names.append(matricole[item]['matricola'])
-            else:
+            except:
                 names.append('<nome>')
                 names.append('<matricola>')
         
