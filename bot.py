@@ -222,7 +222,7 @@ def stampa_turni(update, context):
         c = con.cursor()
         c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
         turn_list = c.fetchone()
-        names = []
+        names = [], flag = False
         for item in turn_list:
             try:
                 names.append(matricole[item]['nome'])
@@ -230,6 +230,7 @@ def stampa_turni(update, context):
             except:
                 names.append('<nome>')
                 names.append('<matricola>')
+                flag = True
         
         
         # Set turni protected to 1 -> not modifiable
@@ -262,8 +263,12 @@ def stampa_turni(update, context):
         
         # Send file
         week_number = week.split('-')[1]
+        text = "File con i turni definitivi\n{}° settimana\n#FileTurni"
+        if flag:
+            text += "\n\n*Non tutti hanno fatto il corso della sicurezza*"
         context.bot.send_document(chat_id=chat_id, document=open(file_path, 'rb'),
-                                  caption="File con i turni definitivi\n{}° settimana\n#FileTurni".format(week_number))
+                                  caption=text.format(week_number),
+                                  parse_mode=ParseMode.MARKDOWN)
 
 def inizializza_settimana(context, list_id=None):
     week_number = date.today().strftime("%U")
