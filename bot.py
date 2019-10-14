@@ -208,8 +208,13 @@ def inizializza_settimana(context, list_id=None):
                     (chat_id, week_number))
             con.commit()
             
-            # Send new message to group
-            turni(None, context, chat_id=chat_id)
+            # Create text, keyboard
+            t, k = text_keyboard(chat_id)
+            # Send message
+            context.bot.sendMessage(chat_id=chat_id,
+                                text=t,
+                                reply_markup=k,
+                                parse_mode=ParseMode.MARKDOWN)
     con.close()
 
 def check_prenotazione(context):
@@ -226,8 +231,14 @@ def check_prenotazione(context):
         chat_id = chat_id[0]
         c.execute("SELECT " + colonne[int(day_number)] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
         if c.fetchone()[0] is None:
-            # Send message to group
-            turni(None, context, chat_id=chat_id)
+            # Create text, keyboard
+            t, k = text_keyboard(chat_id)
+            # Send message
+            context.bot.sendMessage(chat_id=chat_id,
+                                text=t,
+                                reply_markup=k,
+                                parse_mode=ParseMode.MARKDOWN)
+            
 
 def error(update, context):
     try:
@@ -264,14 +275,14 @@ def main():
     # log all errors
     #dispatcher.add_error_handler(error)
     
-    # Periodic Job
+    # New message
     # 0 - Monday -> 6 - Sunday
     updater.job_queue.run_daily(inizializza_settimana, time=time(8, 0, 0), days=(0,))
     updater.job_queue.run_daily(inizializza_settimana, time=time(19, 0, 0), days=(6,))
     
-    # Periodic Job every Mon to Fri at 20:00
+    # Check if prenotation is fullfilled
     updater.job_queue.run_daily(check_prenotazione, time=time(12, 0, 0), days=(0, 1, 2, 3, 4, 5, 6))
-    updater.job_queue.run_daily(check_prenotazione, time=time(19, 0, 0), days=(0, 1, 2, 3, 4, 5))
+    updater.job_queue.run_daily(check_prenotazione, time=time(19, 30, 0), days=(0, 1, 2, 3, 4, 5))
     #updater.job_queue.run_once(check_prenotazione, when=0)
     
     updater.start_polling()
