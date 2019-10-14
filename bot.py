@@ -2,12 +2,15 @@ from telegram.ext import Updater
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 from telegram import KeyboardButton, ReplyKeyboardMarkup, ParseMode, InlineKeyboardButton, InlineKeyboardMarkup
 
-import logging, configparser, sqlite3
-from datetime import date, time
+import logging, configparser, sqlite3, json, locale
+from datetime import date, time, datetime
 
 # Global settings
 settings_path = 'settings.ini'
 db_path = 'database.db'
+matricole_path = "matricole.json"
+
+locale.setlocale(locale.LC_TIME, "it_IT.utf8")
 
 # Logging errors
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -35,36 +38,40 @@ def text_keyboard(chat_id):
     # Skeleton text
     text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n#ChiChiude\n\n`Lunedì:    `[{}](tg://user?id={})\n" + \
         "`Martedì:   `[{}](tg://user?id={})\n`Mercoledì: `[{}](tg://user?id={})\n`Giovedì:   `[{}](tg://user?id={})\n" + \
-        "`Venerdì:   `[{}](tg://user?id={})\n`Sabato:    `[{}](tg://user?id={})\n`Domenica:  `[{}](tg://user?id={})\n\n" + \
-        "Prenotati qui sotto:"
+        "`Venerdì:   `[{}](tg://user?id={})\n`Sabato:    `[{}](tg://user?id={})\n`Domenica:  `[{}](tg://user?id={})"
     
     # Make buttons
-    giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
-    i = 0; tot=0; line, keyboard = [[],[]]
-    while i < 5:
+    c.execute("SELECT protected FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    if c.fetchone()[0] == "0":
+        giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
+        i = 0; tot=0; line, keyboard = [[],[]]
+        while i < 5:
+            if turn_list[i] is None:
+                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+            else:
+                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+                tot += 1
+            i += 1
+            if turn_list[i] is None:
+                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+            else:
+                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+                tot += 1
+            i += 1
+            keyboard.append(line)
+            line = []
+        # 7 is prime -> no symmetry in buttons
         if turn_list[i] is None:
-            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+            keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
         else:
-            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+            keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
             tot += 1
-        i += 1
-        if turn_list[i] is None:
-            line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
-        else:
-            line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
-            tot += 1
-        i += 1
-        keyboard.append(line)
-        line = []
-    # 7 is prime -> no symmetry in buttons
-    if turn_list[i] is None:
-        keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
+        # Add button for printing and blocking turns
+        if tot == 7:
+            keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-print' )] )
+        text += "\n\nPrenotati qui sotto:"
     else:
-        keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
-        tot += 1
-    # Add button for printing and blocking turns
-    if tot == 7:
-        keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-print' )] )
+        keyboard = [[InlineKeyboardButton('Stampa i turni', callback_data='3-print' )]]
     
     return text.format(*row), InlineKeyboardMarkup(keyboard)
 
@@ -188,8 +195,75 @@ def reset_turni(update, context):
                                 parse_mode=ParseMode.MARKDOWN)
 
 def stampa_turni(update, context):
-    #TODO
-    pass
+    user_id = str(update.callback_query.from_user.id)
+    chat_id = str(update.callback_query.message.chat.id)
+    
+    # Restrict access to admins
+    flag = False
+    for admin_id in config['BOT']['admins'].split(','):
+        if admin_id == user_id:
+            flag = True
+    if flag:
+        # Load file
+        with open(matricole_path, encoding='utf-8', errors='ignore') as json_data:
+            matricole = json.load(json_data, strict=False)
+            json_data.close()
+        
+        # Create skeleton strings
+        week = date.today().strftime("%Y-%U-")
+        row = ''
+        for i in range(1,7):
+            row += datetime.strptime(week + str(i), "%Y-%W-%w").strftime("%d/%m/%Y %A: {} [matricola {}]\n")
+        row += datetime.strptime(week + '0', "%Y-%W-%w").strftime("%d/%m/%Y %A: {} [matricola {}]\n") # Domenica
+        
+        header = "Elenco turni chiusura Aula Pollaio"
+        
+        con = sqlite3.connect(db_path)
+        c = con.cursor()
+        c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+        turn_list = c.fetchone()
+        names = []
+        for item in turn_list:
+            if item is not None:
+                names.append(matricole[item]['nome'])
+                names.append(matricole[item]['matricola'])
+            else:
+                names.append('<nome>')
+                names.append('<matricola>')
+        
+        
+        # Set turni protected to 1 -> not modifiable
+        c.execute("SELECT id FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+        c.execute("UPDATE turns SET protected = 1 WHERE id = ?", (c.fetchone()[0],))
+        con.commit()
+        con.close()
+        
+        # Delete message
+        try:
+            context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
+                                message_id=update.callback_query.message.message_id)
+        except:
+            pass
+        
+        # Create text, keyboard
+        t, k = text_keyboard(chat_id)
+        # Send message
+        context.bot.sendMessage(chat_id=chat_id,
+                                text=t,
+                                reply_markup=k,
+                                parse_mode=ParseMode.MARKDOWN)
+        
+        # Save file
+        file_path = week + 'turni.txt'
+        with open(file_path, 'w') as f:
+            f.write(header + '\n\n')
+            f.write(row.format(*names))
+            f.close()
+        
+        # Send file
+        week_number = week.split('-')[1]
+        context.bot.send_document(chat_id=chat_id, document=open(file_path, 'rb'),
+                                  caption="File con i turni definitivi\n{}° settimana\n#FileTurni".format(week_number))
 
 def inizializza_settimana(context, list_id=None):
     week_number = date.today().strftime("%U")
@@ -204,10 +278,9 @@ def inizializza_settimana(context, list_id=None):
         # Set new week to null for all days
         c.execute("SELECT * FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
         if c.fetchone() is None:
-            c.execute("INSERT INTO turns (chat_id, settimana) VALUES (?, ?)",
+            c.execute("INSERT INTO turns (chat_id, settimana, protected) VALUES (?, ?, 0)",
                     (chat_id, week_number))
             con.commit()
-            
             # Create text, keyboard
             t, k = text_keyboard(chat_id)
             # Send message
@@ -238,7 +311,6 @@ def check_prenotazione(context):
                                 text=t,
                                 reply_markup=k,
                                 parse_mode=ParseMode.MARKDOWN)
-            
 
 def error(update, context):
     try:
