@@ -76,7 +76,7 @@ def text_keyboard(chat_id, mode=0, data=None):
         
         # Add alert corso sicurezza
         if mode == 1:
-            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*\n" + str(data)
+            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*" + str(data)
         
         text += "\n\nPrenotati qui sotto:"
     else:
@@ -230,7 +230,7 @@ def stampa_turni(update, context):
             row += datetime.strptime(week + str(i), "%Y-%W-%w").strftime("%d/%m/%Y %A: {} [matricola {}]\n")
         row += datetime.strptime(week + '0', "%Y-%W-%w").strftime("%d/%m/%Y %A: {} [matricola {}]\n") # Domenica
         
-        header = "Elenco turni chiusura Aula Pollaio"
+        header = date.today().strftime("Elenco turni chiusura Aula Pollaio\n%U° settimana del %Y")
         
         con = sqlite3.connect(db_path)
         c = con.cursor()
@@ -248,7 +248,7 @@ def stampa_turni(update, context):
                 flag = True
                 
                 user = context.bot.get_chat_member(chat_id, item).user
-                no_corso += user.first_name + " " + user.last_name + "\n"
+                no_corso += "\n" + user.first_name + " " + user.last_name
         
         # Tutti gli utenti hanno fatto il corso sulla sicurezza
         if not flag:
