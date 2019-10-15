@@ -19,7 +19,11 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 config = configparser.ConfigParser()
 config.read(settings_path)
 
-def text_keyboard(chat_id):
+def text_keyboard(chat_id, mode=0):
+    # Mode list
+    # 0  | normal
+    # 1  | alert corso sicurezza
+    
     # Get last week in database
     con = sqlite3.connect(db_path)
     c = con.cursor()
@@ -69,6 +73,11 @@ def text_keyboard(chat_id):
         # Add button for printing and blocking turns
         if tot == 7:
             keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-print' )] )
+        
+        # Add alert corso sicurezza
+        if mode == 1:
+            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*"
+        
         text += "\n\nPrenotati qui sotto:"
     else:
         keyboard = [[InlineKeyboardButton('Stampa i turni', callback_data='3-print' )]]
@@ -237,12 +246,26 @@ def stampa_turni(update, context):
                 names.append('<matricola>')
                 flag = True
         
-        
-        # Set turni protected to 1 -> not modifiable
-        c.execute("SELECT id FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
-        c.execute("UPDATE turns SET protected = 1 WHERE id = ?", (c.fetchone()[0],))
-        con.commit()
-        con.close()
+        if not flag:
+            # Set turni protected to 1 -> not modifiable
+            c.execute("SELECT id FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+            c.execute("UPDATE turns SET protected = 1 WHERE id = ?", (c.fetchone()[0],))
+            con.commit()
+            con.close()
+            
+            # Save file
+            file_path = week + 'turni.txt'
+            with open(file_path, 'w') as f:
+                f.write(header + '\n\n')
+                f.write(row.format(*names))
+                f.close()
+            
+            # Send file
+            week_number = week.split('-')[1]
+            text = "File con i turni definitivi\n{}° settimana\n#FileTurni"
+            context.bot.send_document(chat_id=chat_id, document=open(file_path, 'rb'),
+                                    caption=text.format(week_number),
+                                    parse_mode=ParseMode.MARKDOWN)
         
         # Delete message
         try:
@@ -252,28 +275,12 @@ def stampa_turni(update, context):
             pass
         
         # Create text, keyboard
-        t, k = text_keyboard(chat_id)
+        t, k = text_keyboard(chat_id, mode=1) if flag else text_keyboard(chat_id, mode=1)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
                                 reply_markup=k,
                                 parse_mode=ParseMode.MARKDOWN)
-        
-        # Save file
-        file_path = week + 'turni.txt'
-        with open(file_path, 'w') as f:
-            f.write(header + '\n\n')
-            f.write(row.format(*names))
-            f.close()
-        
-        # Send file
-        week_number = week.split('-')[1]
-        text = "File con i turni definitivi\n{}° settimana\n#FileTurni"
-        if flag:
-            text += "\n\n*Non tutti hanno fatto il corso della sicurezza*"
-        context.bot.send_document(chat_id=chat_id, document=open(file_path, 'rb'),
-                                  caption=text.format(week_number),
-                                  parse_mode=ParseMode.MARKDOWN)
 
 def inizializza_settimana(context, list_id=None):
     week_number = date.today().strftime("%U")
