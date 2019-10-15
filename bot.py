@@ -19,7 +19,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 config = configparser.ConfigParser()
 config.read(settings_path)
 
-def text_keyboard(chat_id, mode=0):
+def text_keyboard(chat_id, mode=0, data=None):
     # Mode list
     # 0  | normal
     # 1  | alert corso sicurezza
@@ -76,7 +76,7 @@ def text_keyboard(chat_id, mode=0):
         
         # Add alert corso sicurezza
         if mode == 1:
-            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*"
+            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza\n" + str(data) + "*"
         
         text += "\n\nPrenotati qui sotto:"
     else:
@@ -237,6 +237,7 @@ def stampa_turni(update, context):
         c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
         turn_list = c.fetchone()
         names = []; flag = False
+        no_corso = ""
         for item in turn_list:
             try:
                 names.append(matricole[item]['nome'])
@@ -245,6 +246,9 @@ def stampa_turni(update, context):
                 names.append('<nome>')
                 names.append('<matricola>')
                 flag = True
+                
+                user = context.bot.get_chat_member(chat_id, item).user
+                no_corso += user.first_name + user.last_name + "\n"
         
         if not flag:
             # Set turni protected to 1 -> not modifiable
@@ -275,7 +279,7 @@ def stampa_turni(update, context):
             pass
         
         # Create text, keyboard
-        t, k = text_keyboard(chat_id, mode=1) if flag else text_keyboard(chat_id, mode=1)
+        t, k = text_keyboard(chat_id, mode=1, data=no_corso) if flag else text_keyboard(chat_id)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
