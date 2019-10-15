@@ -73,6 +73,8 @@ def text_keyboard(chat_id):
     else:
         keyboard = [[InlineKeyboardButton('Stampa i turni', callback_data='3-print' )]]
     
+    con.close()
+    
     return text.format(*row), InlineKeyboardMarkup(keyboard)
 
 def start(update, context):
@@ -122,40 +124,43 @@ def callback_turni(update, context):
     data = update.callback_query.data[2:].split('-')
     user_id = update.callback_query.from_user.id
     
-    # Get name of user
-    name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
-    if name == ' ':
-        name = update.callback_query.from_user.username
-    if name.replace(' ','') == ' ':
-        name = update.callback_query.from_user.id
-    
-    # Filter name characters
-    name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
-    
-    # Insert name
+    # Check protected
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
-    c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ?, " + colonne[int(data[1])] + "ID = ? WHERE ID = ?", (name, user_id, data[0]) )
-    con.commit()
+    c.execute("SELECT protected FROM turns WHERE id = ?", (data[0],))
+    if c.fetchone()[0] == "0":
+        # Get name of user
+        name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
+        if name == ' ':
+            name = update.callback_query.from_user.username
+        if name.replace(' ','') == ' ':
+            name = update.callback_query.from_user.id
+        
+        # Filter name characters
+        name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
+        
+        # Insert name
+        colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+        c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ?, " + colonne[int(data[1])] + "ID = ? WHERE ID = ?", (name, user_id, data[0]) )
+        con.commit()
+        
+        # Delete message
+        try:
+            context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
+                                message_id=update.callback_query.message.message_id)
+        except:
+            pass
+        
+        # Send new message to group
+        chat_id = update.callback_query.message.chat.id
+        # Create text, keyboard
+        t, k = text_keyboard(chat_id)
+        # Send message
+        context.bot.sendMessage(chat_id=chat_id,
+                                text=t,
+                                reply_markup=k,
+                                parse_mode=ParseMode.MARKDOWN)
     con.close()
-    
-    # Delete message
-    try:
-        context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
-                              message_id=update.callback_query.message.message_id)
-    except:
-        pass
-    
-    # Send new message to group
-    chat_id = update.callback_query.message.chat.id
-    # Create text, keyboard
-    t, k = text_keyboard(chat_id)
-    # Send message
-    context.bot.sendMessage(chat_id=chat_id,
-                            text=t,
-                            reply_markup=k,
-                            parse_mode=ParseMode.MARKDOWN)
 
 def reset_turni(update, context):
     data = update.callback_query.data[2:].split('-')
@@ -177,7 +182,6 @@ def reset_turni(update, context):
         # Resetta il turno
         c.execute("UPDATE turns SET "+colonne[int(data[1])]+" = NULL, "+ colonne[int(data[1])] +"ID = NULL WHERE ID = ?", (data[0],))
         con.commit()
-        con.close()
         # Delete message
         try:
             context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
@@ -193,6 +197,7 @@ def reset_turni(update, context):
                                 text=t,
                                 reply_markup=k,
                                 parse_mode=ParseMode.MARKDOWN)
+    con.close()
 
 def stampa_turni(update, context):
     user_id = str(update.callback_query.from_user.id)
@@ -315,6 +320,7 @@ def check_prenotazione(context):
                                 text=t,
                                 reply_markup=k,
                                 parse_mode=ParseMode.MARKDOWN)
+    con.close()
 
 def error(update, context):
     try:
