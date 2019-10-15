@@ -76,7 +76,7 @@ def text_keyboard(chat_id, mode=0, data=None):
         
         # Add alert corso sicurezza
         if mode == 1:
-            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza\n" + str(data) + "*"
+            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*\n" + str(data)
         
         text += "\n\nPrenotati qui sotto:"
     else:
@@ -248,8 +248,9 @@ def stampa_turni(update, context):
                 flag = True
                 
                 user = context.bot.get_chat_member(chat_id, item).user
-                no_corso += user.first_name + user.last_name + "\n"
+                no_corso += user.first_name + " " + user.last_name + "\n"
         
+        # Tutti gli utenti hanno fatto il corso sulla sicurezza
         if not flag:
             # Set turni protected to 1 -> not modifiable
             c.execute("SELECT id FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
