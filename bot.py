@@ -5,10 +5,13 @@ from telegram import KeyboardButton, ReplyKeyboardMarkup, ParseMode, InlineKeybo
 import logging, configparser, sqlite3, json, locale
 from datetime import date, time, datetime
 
+from os.path import join
+
 # Global settings
+data_folder = 'data'
 settings_path = 'settings.ini'
 db_path = 'database.db'
-matricole_path = "matricole.json"
+matricole_path = join(data_folder, "matricole.json")
 
 locale.setlocale(locale.LC_TIME, "it_IT.utf8")
 
