@@ -22,6 +22,19 @@ column_names = ['CognomeNome',
                 'note']
 
 def corsoEnc(r):
+    """
+    Codifica l'avere o meno fatto i due corsi sulla sicurezza attraverso una stringa
+    
+    Parameters
+    ---------
+    r : Dataframe row (or dict)
+        Dizionario (o riga di un DataFrame) che contiene le informazioni sui corsi
+        
+    Returns
+    -------
+    str
+        Codice: '' se ha sostenuto entrambi i corsi, 'Y' se ha sostenuto solo il base, 'X' se nessuno dei due
+    """
     if r['corsoBase']:
         if r['corsoBasso']:
             return ''
@@ -32,6 +45,23 @@ def corsoEnc(r):
 
 
 def path_check(f):
+    """
+    Controlla esistenza dei dati di input
+    
+    Parameters
+    ---------
+    f : str
+        Nome del file di input (con path relativo)
+        
+    """
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except TypeError:
+        try:
+            os.makedirs(folder)
+        except FileExistsError:
+            pass
+    
     if os.path.exists(f):
         return
     else:
@@ -39,13 +69,26 @@ def path_check(f):
 
 
 def parse_xlsx(f):
+    """
+    Legge il file con i dati di input e restituisce un dataframe Pandas
+    
+    Parameters
+    ---------
+    f : str
+        Nome del file di input (con path relativo)
+        
+    Returns
+    -------
+    DataFrame
+        Il contenuto del file
+    """
     try:
         df = pd.read_excel(f, header=0, true_values=true_list, false_values=false_list, skiprows=[0,1], names=column_names)
     except:
         df = pd.read_excel(f, header=0, skiprows=[0,1], names=column_names)
         df['corsoBase'] = df['corsoBase'].apply(lambda x: True if x in true_list else False)
         df['corsoBasso'] = df['corsoBasso'].apply(lambda x: True if x in true_list else False)
-    print(df.head())
+    df['CognomeNome'] = df['CognomeNome'].str.strip()
     return df
 
 
