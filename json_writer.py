@@ -83,7 +83,7 @@ def parse_xlsx(f):
         Il contenuto del file
     """
     try:
-        df = pd.read_excel(f, header=0, true_values=true_list, false_values=false_list, skiprows=[0,1], names=column_names)
+        df = pd.read_excel(f, header=0, true_values=true_list, false_values=false_list, skiprows=[0,1], names=column_names, sheet_name='Chiusure')
     except:
         df = pd.read_excel(f, header=0, skiprows=[0,1], names=column_names)
         df['corsoBase'] = df['corsoBase'].apply(lambda x: True if x in true_list else False)
