@@ -262,7 +262,7 @@ def stampa_turni(update, context):
             con.close()
             
             # Save file
-            file_path = week + 'turni.txt'
+            file_path = data_folder + '/' + week + 'turni.txt'
             with open(file_path, 'w') as f:
                 f.write(header + '\n\n')
                 f.write(row.format(*names))
