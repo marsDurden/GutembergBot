@@ -13,6 +13,8 @@ settings_path = 'settings.ini'
 db_path = 'database.db'
 matricole_path = join(data_folder, "matricole.json")
 
+colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+
 locale.setlocale(locale.LC_TIME, "it_IT.utf8")
 
 # Logging errors
@@ -22,7 +24,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 config = configparser.ConfigParser()
 config.read(settings_path)
 
-def text_keyboard(chat_id, mode=0, data=None):
+def text_keyboard(chat_id, mode=0, ext_text=None):
     # Mode list
     # 0  | normal
     # 1  | alert corso sicurezza
@@ -39,13 +41,18 @@ def text_keyboard(chat_id, mode=0, data=None):
     id_turno = row[0]
     row = row[1:]
     
-    c.execute("SELECT lun, mar, mer, gio, ven, sab, dom FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    c.execute("SELECT " + ', '.join(colonne) + " FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
     turn_list = c.fetchone()
     
     # Skeleton text
-    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n#ChiChiude\n\n`Lunedì:    `[{}](tg://user?id={})\n" + \
-        "`Martedì:   `[{}](tg://user?id={})\n`Mercoledì: `[{}](tg://user?id={})\n`Giovedì:   `[{}](tg://user?id={})\n" + \
-        "`Venerdì:   `[{}](tg://user?id={})\n`Sabato:    `[{}](tg://user?id={})\n`Domenica:  `[{}](tg://user?id={})"
+    week = date.today().strftime("%Y-%U-")
+    text = []
+    for i in range(1,7):
+        text.append(datetime.strptime(week + str(i), "%Y-%W-%w").strftime("%d/%m"))  # Lunedì -> Sabato
+    text.append(datetime.strptime(week + '0', "%Y-%W-%w").strftime("%d/%m"))        # Domenica
+    text = "*Turni chiusura Pollaio*\n_{}° settimana dell'anno_\n#ChiChiude\n\n`%s Lunedì:    `[{}](tg://user?id={})\n" \
+        "`%s Martedì:   `[{}](tg://user?id={})\n`%s Mercoledì: `[{}](tg://user?id={})\n`%s Giovedì:   `[{}](tg://user?id={})\n" \
+        "`%s Venerdì:   `[{}](tg://user?id={})\n`%s Sabato:    `[{}](tg://user?id={})\n`%s Domenica:  `[{}](tg://user?id={})" % (*text,)
     
     # Make buttons
     c.execute("SELECT protected FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
@@ -79,7 +86,7 @@ def text_keyboard(chat_id, mode=0, data=None):
         
         # Add alert corso sicurezza
         if mode == 1:
-            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*" + str(data)
+            text += "\n\n*Non tutti i prenotati hanno fatto il corso sulla sicurezza*" + str(ext_text)
         
         text += "\n\nPrenotati qui sotto:"
     else:
@@ -133,6 +140,7 @@ def turni(update, context):
                             parse_mode=ParseMode.MARKDOWN)
 
 def callback_turni(update, context):
+    # Get parameters from context TODO
     data = update.callback_query.data[2:].split('-')
     user_id = update.callback_query.from_user.id
     
@@ -158,7 +166,6 @@ def callback_turni(update, context):
         name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
         
         # Insert name
-        colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
         c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ?, " + colonne[int(data[1])] + "ID = ? WHERE ID = ?", (name, user_id, data[0]) )
         con.commit()
         
@@ -188,7 +195,6 @@ def reset_turni(update, context):
     # Seelzione utente prenotato
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
     c.execute("SELECT " + colonne[int(data[1])] + "ID FROM turns WHERE ID = ?", (data[0],))
     turn_user_id = str(c.fetchone()[0])
     
@@ -291,7 +297,7 @@ def stampa_turni(update, context):
             pass
         
         # Create text, keyboard
-        t, k = text_keyboard(chat_id, mode=1, data=no_corso) if flag else text_keyboard(chat_id)
+        t, k = text_keyboard(chat_id, mode=1, ext_text=no_corso) if flag else text_keyboard(chat_id)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
@@ -324,7 +330,6 @@ def inizializza_settimana(context, list_id=None):
     con.close()
 
 def check_prenotazione(context):
-    colonne = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
     # 0 - Sunday -> 6 - Saturday
     day_number = date.today().strftime("%w")
     week_number = date.today().strftime("%U")
@@ -334,8 +339,8 @@ def check_prenotazione(context):
     id_list = c.fetchall()
     for chat_id in id_list:
         chat_id = chat_id[0]
-        c.execute("SELECT " + colonne[int(day_number)] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
-        if c.fetchone()[0] is None:
+        res = c.execute("SELECT " + colonne[int(day_number)] + " FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id )).fetchone()
+        if res is None or res[0] is None:
             # Create text, keyboard
             t, k = text_keyboard(chat_id)
             # Send message
@@ -348,11 +353,11 @@ def check_prenotazione(context):
 def error(update, context):
     try:
         # Normal message
-        context.bot.sendMessage(config['BOT']['adminID'],parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.message.chat_id, update.message.text, context.error)))
+        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.message.chat_id, update.message.text, context.error)))
         logging.warn('Update "%s" caused error "%s"' % (update.message.text, context.error))
     except:
         # Callback message
-        context.bot.sendMessage(config['BOT']['adminID'],parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.callback_query.message.chat_id, update.callback_query.data, context.error)))
+        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.callback_query.message.chat_id, update.callback_query.data, context.error)))
         logging.warn('Update "%s" caused error "%s"' % (update.callback_query.data, context.error))
 
 def main():
@@ -369,10 +374,15 @@ def main():
     dispatcher.add_handler(CommandHandler('turni', turni))
     
     # Callback
+    # X-Y-other
+    #
+    # X | description
     # 0 | nothing
     # 1 | new name
     # 2 | reset turns
     # 3 | print turns
+    #
+    # Y: week of the year
     dispatcher.add_handler(CallbackQueryHandler(callback_turni, pattern='^1-'))
     dispatcher.add_handler(CallbackQueryHandler(reset_turni, pattern='^2-'))
     dispatcher.add_handler(CallbackQueryHandler(stampa_turni, pattern='^3-'))
