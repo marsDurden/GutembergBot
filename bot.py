@@ -100,7 +100,7 @@ def start(update, context):
     con.close()
     
     # Send start message
-    context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
+    #context.bot.sendMessage(chat_id=update.message.chat_id, text="Ciao! Io gestisco i turni delle chiusure dell'Aula studio Pollaio")
     
     # Set new settimana
     inizializza_settimana(context, list_id=update.message.chat.id)
@@ -142,7 +142,13 @@ def callback_turni(update, context):
     c.execute("SELECT protected FROM turns WHERE id = ?", (data[0],))
     if c.fetchone()[0] == "0":
         # Get name of user
-        name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
+        try:
+            name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
+            print(name, type(name))
+        except:
+            name = ' '
+        if name == None:
+            name = ' '
         if name == ' ':
             name = update.callback_query.from_user.username
         if name.replace(' ','') == ' ':
@@ -171,6 +177,7 @@ def callback_turni(update, context):
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
                                 reply_markup=k,
+                                disable_notification=True,
                                 parse_mode=ParseMode.MARKDOWN)
     con.close()
 
@@ -208,6 +215,7 @@ def reset_turni(update, context):
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
                                 reply_markup=k,
+                                disable_notification=True,
                                 parse_mode=ParseMode.MARKDOWN)
     con.close()
 
@@ -331,10 +339,10 @@ def check_prenotazione(context):
             # Create text, keyboard
             t, k = text_keyboard(chat_id)
             # Send message
-            context.bot.sendMessage(chat_id=chat_id,
-                                text=t,
-                                reply_markup=k,
-                                parse_mode=ParseMode.MARKDOWN)
+            try:
+                context.bot.sendMessage(chat_id=chat_id, text=t, reply_markup=k, parse_mode=ParseMode.MARKDOWN)
+            except:
+                pass
     con.close()
 
 def error(update, context):
@@ -370,7 +378,7 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(stampa_turni, pattern='^3-'))
     
     # log all errors
-    #dispatcher.add_error_handler(error)
+    dispatcher.add_error_handler(error)
     
     # New message
     # 0 - Monday -> 6 - Sunday
@@ -378,7 +386,8 @@ def main():
     updater.job_queue.run_daily(inizializza_settimana, time=time(19, 0, 0), days=(6,))
     
     # Check if prenotation is fullfilled
-    updater.job_queue.run_daily(check_prenotazione, time=time(12, 0, 0), days=(0, 1, 2, 3, 4, 5, 6))
+    # 0 - Monday -> 6 - Sunday
+    updater.job_queue.run_daily(check_prenotazione, time=time(12, 0, 0),  days=(0, 1, 2, 3, 4, 5, 6))
     updater.job_queue.run_daily(check_prenotazione, time=time(19, 30, 0), days=(0, 1, 2, 3, 4, 5))
     #updater.job_queue.run_once(check_prenotazione, when=0)
     
