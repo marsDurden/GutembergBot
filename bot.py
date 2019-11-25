@@ -24,15 +24,16 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 config = configparser.ConfigParser()
 config.read(settings_path)
 
-def text_keyboard(chat_id, mode=0, ext_text=None):
+def text_keyboard(chat_id, n_settimana, mode=0, ext_text=None):
     # Mode list
     # 0  | normal
     # 1  | alert corso sicurezza
+    n_settimana = str(n_settimana)
     
-    # Get last week in database
+    # Get week in database
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("SELECT id, settimana, lun, lunID, mar, marID, mer, merID, gio, gioID, ven, venID, sab, sabID, dom, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    c.execute("SELECT id, settimana, lun, lunID, mar, marID, mer, merID, gio, gioID, ven, venID, sab, sabID, dom, domID FROM turns WHERE chat_id = ? AND settimana = ?", (chat_id, n_settimana))
     # variable row
     # 0     | id
     # 1     | # settimana
@@ -41,11 +42,11 @@ def text_keyboard(chat_id, mode=0, ext_text=None):
     id_turno = row[0]
     row = row[1:]
     
-    c.execute("SELECT " + ', '.join(colonne) + " FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    c.execute("SELECT " + ', '.join(colonne) + " FROM turns WHERE chat_id = ? AND settimana = ?", (chat_id, n_settimana))
     turn_list = c.fetchone()
     
     # Skeleton text
-    week = date.today().strftime("%Y-%U-")
+    week = date.today().strftime("%Y-"+n_settimana+"-")
     text = []
     for i in range(1,7):
         text.append(datetime.strptime(week + str(i), "%Y-%W-%w").strftime("%d/%m"))  # Lunedì -> Sabato
@@ -55,34 +56,34 @@ def text_keyboard(chat_id, mode=0, ext_text=None):
         "`%s Venerdì:   `[{}](tg://user?id={})\n`%s Sabato:    `[{}](tg://user?id={})\n`%s Domenica:  `[{}](tg://user?id={})" % (*text,)
     
     # Make buttons
-    c.execute("SELECT protected FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    c.execute("SELECT protected FROM turns WHERE chat_id = ? AND settimana = ?", (chat_id, n_settimana))
     if c.fetchone()[0] == "0":
         giorni = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
         i = 0; tot=0; line, keyboard = [[],[]]
         while i < 5:
             if turn_list[i] is None:
-                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+n_settimana+'-'+str(id_turno)+'-'+str(i) ) )
             else:
-                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+n_settimana+'-'+str(id_turno)+'-'+str(i) ) )
                 tot += 1
             i += 1
             if turn_list[i] is None:
-                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) ) )
+                line.append(InlineKeyboardButton(giorni[i], callback_data='1-'+n_settimana+'-'+str(id_turno)+'-'+str(i) ) )
             else:
-                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) ) )
+                line.append(InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+n_settimana+'-'+str(id_turno)+'-'+str(i) ) )
                 tot += 1
             i += 1
             keyboard.append(line)
             line = []
         # 7 is prime -> no symmetry in buttons
         if turn_list[i] is None:
-            keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+str(id_turno)+'-'+str(i) )] )
+            keyboard.append([InlineKeyboardButton(giorni[i], callback_data='1-'+n_settimana+'-'+str(id_turno)+'-'+str(i) )] )
         else:
-            keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+str(id_turno)+'-'+str(i) )] )
+            keyboard.append([InlineKeyboardButton('Reset '+giorni[i], callback_data='2-'+n_settimana+'-'+str(id_turno)+'-'+str(i) )] )
             tot += 1
         # Add button for printing and blocking turns
         if tot == 7:
-            keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-print' )] )
+            keyboard.append([InlineKeyboardButton('Stampa i turni', callback_data='3-'+n_settimana+'-print' )] )
         
         # Add alert corso sicurezza
         if mode == 1:
@@ -90,7 +91,7 @@ def text_keyboard(chat_id, mode=0, ext_text=None):
         
         text += "\n\nPrenotati qui sotto:"
     else:
-        keyboard = [[InlineKeyboardButton('Stampa i turni', callback_data='3-print' )]]
+        keyboard = [[InlineKeyboardButton('Stampa i turni', callback_data='3-'+n_settimana+'-print' )]]
     
     con.close()
     
@@ -130,9 +131,18 @@ def info(update, context):
                             parse_mode=ParseMode.MARKDOWN)
 
 def turni(update, context):
-    # Create text, keyboard
+    # Get chat id
     chat_id = update.message.chat.id
-    t, k = text_keyboard(chat_id)
+    
+    # Get current week number
+    con = sqlite3.connect(db_path)
+    c = con.cursor()
+    c.execute("SELECT settimana FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+    n_settimana = c.fetchone()[0]
+    con.close()
+    
+    # Create text, keyboard
+    t, k = text_keyboard(chat_id, n_settimana)
     # Send message
     context.bot.sendMessage(chat_id=chat_id,
                             text=t,
@@ -143,30 +153,26 @@ def callback_turni(update, context):
     # Get parameters from context TODO
     data = update.callback_query.data[2:].split('-')
     user_id = update.callback_query.from_user.id
+    n_settimana = data[0]
     
     # Check protected
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("SELECT protected FROM turns WHERE id = ?", (data[0],))
+    c.execute("SELECT protected FROM turns WHERE id = ?", (data[1],))
     if c.fetchone()[0] == "0":
         # Get name of user
         try:
             name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
-            print(name, type(name))
         except:
-            name = ' '
-        if name == None:
-            name = ' '
-        if name == ' ':
             name = update.callback_query.from_user.username
-        if name.replace(' ','') == ' ':
+        if name == None:
             name = update.callback_query.from_user.id
         
         # Filter name characters
         name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
         
         # Insert name
-        c.execute("UPDATE turns SET " + colonne[int(data[1])] + " = ?, " + colonne[int(data[1])] + "ID = ? WHERE ID = ?", (name, user_id, data[0]) )
+        c.execute("UPDATE turns SET " + colonne[int(data[2])] + " = ?, " + colonne[int(data[2])] + "ID = ? WHERE ID = ?", (name, user_id, data[1]) )
         con.commit()
         
         # Delete message
@@ -179,7 +185,7 @@ def callback_turni(update, context):
         # Send new message to group
         chat_id = update.callback_query.message.chat.id
         # Create text, keyboard
-        t, k = text_keyboard(chat_id)
+        t, k = text_keyboard(chat_id, n_settimana)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
@@ -191,11 +197,12 @@ def callback_turni(update, context):
 def reset_turni(update, context):
     data = update.callback_query.data[2:].split('-')
     user_id = str(update.callback_query.from_user.id)
+    n_settimana = data[0]
     
     # Seelzione utente prenotato
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("SELECT " + colonne[int(data[1])] + "ID FROM turns WHERE ID = ?", (data[0],))
+    c.execute("SELECT " + colonne[int(data[1])] + "ID FROM turns WHERE ID = ?", (data[1],))
     turn_user_id = str(c.fetchone()[0])
     
     # Restrict reset access
@@ -205,7 +212,7 @@ def reset_turni(update, context):
             flag = True
     if user_id == turn_user_id or flag:
         # Resetta il turno
-        c.execute("UPDATE turns SET "+colonne[int(data[1])]+" = NULL, "+ colonne[int(data[1])] +"ID = NULL WHERE ID = ?", (data[0],))
+        c.execute("UPDATE turns SET "+colonne[int(data[2])]+" = NULL, "+ colonne[int(data[2])] +"ID = NULL WHERE ID = ?", (data[1],))
         con.commit()
         # Delete message
         try:
@@ -216,7 +223,7 @@ def reset_turni(update, context):
         
         chat_id = update.callback_query.message.chat.id
         # Create text, keyboard
-        t, k = text_keyboard(chat_id)
+        t, k = text_keyboard(chat_id, n_settimana)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
@@ -228,6 +235,7 @@ def reset_turni(update, context):
 def stampa_turni(update, context):
     user_id = str(update.callback_query.from_user.id)
     chat_id = str(update.callback_query.message.chat.id)
+    n_settimana = update.callback_query.data.split('-')[1]
     
     # Restrict access to admins
     flag = False
@@ -241,7 +249,7 @@ def stampa_turni(update, context):
             json_data.close()
         
         # Create skeleton strings
-        week = date.today().strftime("%Y-%U-")
+        week = date.today().strftime("%Y-"+str(n_settimana)+"-")
         row = ''
         for i in range(1,7):
             row += datetime.strptime(week + str(i), "%Y-%W-%w").strftime("%d/%m/%Y %A: {} [matricola {}]\n")
@@ -251,7 +259,7 @@ def stampa_turni(update, context):
         
         con = sqlite3.connect(db_path)
         c = con.cursor()
-        c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+        c.execute("SELECT lunID, marID, merID, gioID, venID, sabID, domID FROM turns WHERE chat_id = ? AND settimana = ?", (chat_id, n_settimana))
         turn_list = c.fetchone()
         names = []; flag = False
         no_corso = ""
@@ -270,7 +278,7 @@ def stampa_turni(update, context):
         # Tutti gli utenti hanno fatto il corso sulla sicurezza
         if not flag:
             # Set turni protected to 1 -> not modifiable
-            c.execute("SELECT id FROM turns WHERE chat_id = ? ORDER BY settimana DESC LIMIT 1", (chat_id,))
+            c.execute("SELECT id FROM turns WHERE chat_id = ? AND settimana = ?", (chat_id, n_settimana))
             c.execute("UPDATE turns SET protected = 1 WHERE id = ?", (c.fetchone()[0],))
             con.commit()
             con.close()
@@ -297,7 +305,7 @@ def stampa_turni(update, context):
             pass
         
         # Create text, keyboard
-        t, k = text_keyboard(chat_id, mode=1, ext_text=no_corso) if flag else text_keyboard(chat_id)
+        t, k = text_keyboard(chat_id, n_settimana, mode=1, ext_text=no_corso) if flag else text_keyboard(chat_id, n_settimana)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                                 text=t,
@@ -312,21 +320,22 @@ def inizializza_settimana(context, list_id=None):
     c = con.cursor()
     c.execute("SELECT chat_id FROM utenti")
     id_list = c.fetchall() if list_id is None else [(str(list_id),)]
+    
     for chat_id in id_list:
         chat_id = chat_id[0]
+        
         # Set new week to null for all days
         c.execute("SELECT * FROM turns WHERE settimana = ? AND chat_id = ?", (week_number, chat_id ))
         if c.fetchone() is None:
-            c.execute("INSERT INTO turns (chat_id, settimana, protected) VALUES (?, ?, 0)",
-                    (chat_id, week_number))
+            c.execute("INSERT INTO turns (chat_id, settimana, protected) VALUES (?, ?, 0)", (chat_id, week_number))
             con.commit()
-            # Create text, keyboard
-            t, k = text_keyboard(chat_id)
-            # Send message
-            context.bot.sendMessage(chat_id=chat_id,
-                                text=t,
-                                reply_markup=k,
-                                parse_mode=ParseMode.MARKDOWN)
+        # Create text, keyboard
+        t, k = text_keyboard(chat_id, week_number)
+        # Send message
+        context.bot.sendMessage(chat_id=chat_id,
+                            text=t,
+                            reply_markup=k,
+                            parse_mode=ParseMode.MARKDOWN)
     con.close()
 
 def check_prenotazione(context):
