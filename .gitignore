@@ -2,4 +2,5 @@ database.db
 settings.ini
 *.txt
 *.xlsx
+*.save
 data/
