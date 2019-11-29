@@ -18,7 +18,7 @@ colonne = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
 locale.setlocale(locale.LC_TIME, "it_IT.utf8")
 
 # Logging errors
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - line %(lineno)d - %(message)s',
                      level=logging.INFO)
 
 config = configparser.ConfigParser()
@@ -131,6 +131,7 @@ def info(update, context):
                             parse_mode=ParseMode.MARKDOWN)
 
 def turni(update, context):
+    raise RuntimeError()
     # Get chat id
     chat_id = update.message.chat.id
     
@@ -150,10 +151,11 @@ def turni(update, context):
                             parse_mode=ParseMode.MARKDOWN)
 
 def callback_turni(update, context):
-    # Get parameters from context TODO
+    # Get parameters from context
     data = update.callback_query.data[2:].split('-')
     user_id = update.callback_query.from_user.id
     n_settimana = data[0]
+    print(update.callback_query.data)
     
     # Check protected
     con = sqlite3.connect(db_path)
