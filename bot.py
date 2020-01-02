@@ -131,7 +131,6 @@ def info(update, context):
                             parse_mode=ParseMode.MARKDOWN)
 
 def turni(update, context):
-    raise RuntimeError()
     # Get chat id
     chat_id = update.message.chat.id
     
@@ -155,7 +154,6 @@ def callback_turni(update, context):
     data = update.callback_query.data[2:].split('-')
     user_id = update.callback_query.from_user.id
     n_settimana = data[0]
-    print(update.callback_query.data)
     
     # Check protected
     con = sqlite3.connect(db_path)
@@ -164,11 +162,13 @@ def callback_turni(update, context):
     if c.fetchone()[0] == "0":
         # Get name of user
         try:
-            name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
+            name = update.callback_query.from_user.first_name
+            if update.callback_query.from_user.last_name is not None:
+                name += ' ' + update.callback_query.from_user.last_name
         except:
             name = update.callback_query.from_user.username
         if name == None:
-            name = update.callback_query.from_user.id
+            name = str(update.callback_query.from_user.id)
         
         # Filter name characters
         name = name.replace('_',' ').replace('*',' ').replace('`','').replace('~',' ')
@@ -204,7 +204,7 @@ def reset_turni(update, context):
     # Seelzione utente prenotato
     con = sqlite3.connect(db_path)
     c = con.cursor()
-    c.execute("SELECT " + colonne[int(data[1])] + "ID FROM turns WHERE ID = ?", (data[1],))
+    c.execute("SELECT " + colonne[int(data[2])] + "ID FROM turns WHERE ID = ?", (data[1],))
     turn_user_id = str(c.fetchone()[0])
     
     # Restrict reset access
@@ -218,8 +218,8 @@ def reset_turni(update, context):
         con.commit()
         # Delete message
         try:
-            context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id, 
-                                message_id=update.callback_query.message.message_id)
+            context.bot.deleteMessage(chat_id=update.callback_query.message.chat.id,
+                                      message_id=update.callback_query.message.message_id)
         except:
             pass
         
@@ -332,7 +332,7 @@ def inizializza_settimana(context, list_id=None):
             c.execute("INSERT INTO turns (chat_id, settimana, protected) VALUES (?, ?, 0)", (chat_id, week_number))
             con.commit()
         # Create text, keyboard
-        t, k = text_keyboard(chat_id, week_number)
+        t, k = text_keyboard(chat_id, n_settimana=week_number)
         # Send message
         context.bot.sendMessage(chat_id=chat_id,
                             text=t,
@@ -362,14 +362,23 @@ def check_prenotazione(context):
     con.close()
 
 def error(update, context):
+    # Get name of user
+    try:
+        name = update.callback_query.from_user.first_name + ' ' + update.callback_query.from_user.last_name
+    except:
+        name = update.callback_query.from_user.username
+    if name == None:
+        name = str(update.callback_query.from_user.id)
+
     try:
         # Normal message
-        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.message.chat_id, update.message.text, context.error)))
-        logging.warn('Update "%s" caused error "%s"' % (update.message.text, context.error))
+        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\nname: %s\ntext: %s\ncaused error: _%s_' % (update.message.chat_id, name, update.message.text, context.error)))
+        logging.warn('Update "%s" from "%s" caused error "%s"' % (update.message.text, name, context.error))
     except:
         # Callback message
-        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\ntext: %s\ncaused error: _%s_' % (update.callback_query.message.chat_id, update.callback_query.data, context.error)))
-        logging.warn('Update "%s" caused error "%s"' % (update.callback_query.data, context.error))
+        context.bot.sendMessage(config['BOT']['adminID'], parse_mode=ParseMode.MARKDOWN, text=('*ERROR*\nID: `%s`\nname: %s\ntext: %s\ncaused error: _%s_' % (update.callback_query.message.chat_id, name, update.callback_query.data, context.error)))
+        logging.warn('Update "%s" from "%s" caused error "%s"' % (update.callback_query.data, name, context.error))
+    #raise context.error
 
 def main():
     updater = Updater(token=config['BOT']['token'], use_context=True) 
